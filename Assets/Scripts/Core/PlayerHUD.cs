@@ -6,7 +6,6 @@ public class PlayerHUD : MonoBehaviour
     [SerializeField] private TMP_Text stateLabel;
     [SerializeField] private TMP_Text timerLabel;
     [SerializeField] private TMP_Text coinLabel;
-    [SerializeField] private TMP_Text winStatsLabel;
     [SerializeField] private PlayerController controller;
 
     private bool won;
@@ -26,7 +25,6 @@ public class PlayerHUD : MonoBehaviour
     private void Start()
     {
         coinLabel.text = "0";
-        winStatsLabel.gameObject.SetActive(false);
     }
 
     private void Update()
@@ -56,9 +54,6 @@ public class PlayerHUD : MonoBehaviour
 
         string time        = GameTimer.Instance != null ? GameTimer.Instance.FormattedTime() : "--";
         string collectibles = $"Coins: {Collectible.GetCount(CollectibleType.Coin)}  Sandwiches: {Collectible.GetCount(CollectibleType.Sandwich)}";
-        string detections  = EnemyNavMeshChaser.DetectionCount.ToString();
-        winStatsLabel.gameObject.SetActive(true);
-        winStatsLabel.text = $"Time: {time}\nCollectibles: {collectibles}\nDetected: {detections}x";
     }
 
     private void OnCollected(CollectibleType type, int count)

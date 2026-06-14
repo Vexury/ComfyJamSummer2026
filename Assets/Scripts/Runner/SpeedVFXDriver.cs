@@ -1,15 +1,14 @@
 using UnityEngine;
-using UnityEngine.VFX;
 
 public class SpeedVFXDriver : MonoBehaviour
 {
-    [SerializeField] private VisualEffect vfx;
+    [SerializeField] private ParticleSystem particles;
     [SerializeField] private TrackManager trackManager;
-
-    private static readonly int SparksRate = Shader.PropertyToID("SparksRate");
+    [SerializeField] private float rateMultiplier = 4.0f;
 
     private void Update()
     {
-        vfx.SetFloat(SparksRate, trackManager.WorldSpeed * 4.0f);
+        var emission = particles.emission;
+        emission.rateOverTime = trackManager.WorldSpeed * rateMultiplier;
     }
 }

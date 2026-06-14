@@ -49,8 +49,8 @@ public class PalmTreeSpawner : MonoBehaviour
                 float x = side * Random.Range(sideXMin, sideXMax);
                 float z = centerZ + Random.Range(-StripInterval * 0.3f, StripInterval * 0.3f);
 
-                GameObject tree = Instantiate(palmPrefab);
-                tree.transform.position = new Vector3(x, 0f, z);
+                GameObject tree = Instantiate(palmPrefab, transform);
+                tree.transform.position = new Vector3(x, palmPrefab.transform.position.y, z);
                 tree.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
                 tree.transform.localScale = Vector3.one * Random.Range(0.8f, 1.4f);
                 activeTrees.Add(tree);

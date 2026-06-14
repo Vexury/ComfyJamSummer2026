@@ -21,8 +21,8 @@ public class RollerController : MonoBehaviour
     [SerializeField] private float jumpForce = 8f;
     [SerializeField] private float gravityScale = 1f;
     [SerializeField] private float maxLeanAngle = 30f;
-    [SerializeField] private float leanSpeed = 8f;
     [SerializeField] private bool allowDoubleJump = false;
+    [SerializeField] private float jumpBufferTime = 0.15f;
 
     public bool HasDoubleJump { get; private set; }
 
@@ -37,7 +37,7 @@ public class RollerController : MonoBehaviour
     private float currentLeanY;
     private float leanTimer = -1f;
     private float leanSign;
-    private bool jumpRequested;
+    private float jumpBufferTimer;
     private int groundContactCount;
     private bool doubleJumpUsed;
 
@@ -111,11 +111,25 @@ public class RollerController : MonoBehaviour
 
     private void ApplyJump()
     {
-        if (!jumpRequested) return;
-        jumpRequested = false;
-        Vector3 vel = rb.linearVelocity;
-        vel.y = jumpForce;
-        rb.linearVelocity = vel;
+        if (jumpBufferTimer <= 0f) return;
+        jumpBufferTimer -= Time.fixedDeltaTime;
+
+        if (groundContactCount > 0)
+        {
+            jumpBufferTimer = 0f;
+            Vector3 vel = rb.linearVelocity;
+            vel.y = jumpForce;
+            rb.linearVelocity = vel;
+        }
+        else if ((allowDoubleJump || HasDoubleJump) && !doubleJumpUsed)
+        {
+            jumpBufferTimer = 0f;
+            Vector3 vel = rb.linearVelocity;
+            vel.y = jumpForce;
+            rb.linearVelocity = vel;
+            doubleJumpUsed = true;
+            HasDoubleJump = false;
+        }
     }
 
     private IEnumerator FlashRed()
@@ -135,12 +149,11 @@ public class RollerController : MonoBehaviour
         if (!other.CompareTag("Obstacle") || trackManager == null) return;
 
         trackManager.ResetSpeed();
-        if (Time.time - impulseLastFiredTime > impulseCooldown)
-        {
-            impulseLastFiredTime = Time.time;
-            if (playerRenderers != null && playerRenderers.Length > 0)
-                StartCoroutine(FlashRed());
-        }
+        if (Time.time - impulseLastFiredTime <= impulseCooldown) return;
+
+        impulseLastFiredTime = Time.time;
+        if (playerRenderers != null && playerRenderers.Length > 0)
+            StartCoroutine(FlashRed());
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -165,14 +178,7 @@ public class RollerController : MonoBehaviour
     private void OnJump(bool pressed)
     {
         if (!pressed) return;
-        if (groundContactCount > 0)
-            jumpRequested = true;
-        else if ((allowDoubleJump || HasDoubleJump) && !doubleJumpUsed)
-        {
-            jumpRequested = true;
-            doubleJumpUsed = true;
-            HasDoubleJump = false;
-        }
+        jumpBufferTimer = jumpBufferTime;
     }
 
     private void OnMove(Vector2 input)

@@ -17,17 +17,19 @@ public class TrackManager : MonoBehaviour
         public float yOffset = 0f;
     }
 
-    [Header("Collectibles")]
-    [SerializeField] private CollectibleEntry[] collectiblePrefabs;
-    [SerializeField][Range(0f, 1f)] private float collectibleChance = 0.5f;
+    [Header("Coins")]
+    [SerializeField] private CollectibleEntry[] coinPrefabs;
+    [SerializeField] private int coinLineMin = 3;
+    [SerializeField] private int coinLineMax = 5;
+
+    [Header("Special Collectibles")]
+    [SerializeField] private CollectibleEntry[] specialPrefabs;
 
     [Header("Obstacles")]
     [SerializeField] private CollectibleEntry[] obstaclePrefabs;
-    [SerializeField][Range(0f, 1f)] private float obstacleChance = 0.3f;
 
     [Header("Track")]
     [SerializeField] private float laneWidth = 2.5f;
-    [SerializeField] private float spawnInterval = 8f;
     [SerializeField] private float lookaheadDistance = 60f;
     [SerializeField] private float despawnDistance = 10f;
 
@@ -37,13 +39,18 @@ public class TrackManager : MonoBehaviour
     private float worldSpeed;
 
     public float WorldSpeed => worldSpeed;
+    public bool SpawningEnabled { get; set; } = true;
+    public float ObstacleChance { get; set; } = 0f;
+    public float CoinChance { get; set; } = 0f;
+    public float SpecialChance { get; set; } = 0f;
+    public float SpawnInterval { get; set; } = 8f;
 
     public void ResetSpeed() => worldSpeed *= 0.9f;
 
     private void Start()
     {
         worldSpeed = initialSpeed;
-        furthestSpawnedZ = -spawnInterval;
+        furthestSpawnedZ = -SpawnInterval;
         FillAhead();
     }
 
@@ -60,9 +67,10 @@ public class TrackManager : MonoBehaviour
 
     private void FillAhead()
     {
+        if (!SpawningEnabled) return;
         while (furthestSpawnedZ < lookaheadDistance)
         {
-            furthestSpawnedZ += spawnInterval;
+            furthestSpawnedZ += SpawnInterval;
             SpawnStrip(furthestSpawnedZ);
         }
     }
@@ -111,38 +119,85 @@ public class TrackManager : MonoBehaviour
 
     private void SpawnStrip(float centerZ)
     {
-        bool[] laneHasObstacle = new bool[5];
+        bool[] laneBlocked = new bool[5];
 
+        // Obstacles
         if (obstaclePrefabs != null && obstaclePrefabs.Length > 0)
         {
             for (int lane = 0; lane < 5; lane++)
             {
-                if (UnityEngine.Random.value > obstacleChance) continue;
+                if (laneBlocked[lane]) continue;
+                if (UnityEngine.Random.value > ObstacleChance) continue;
 
                 float x = (lane - 2) * laneWidth;
-                float zOffset = UnityEngine.Random.Range(-spawnInterval * 0.3f, spawnInterval * 0.3f);
-                CollectibleEntry obstacleEntry = PickWeighted(obstaclePrefabs);
-                GameObject o = Instantiate(obstacleEntry.prefab, transform);
-                o.transform.localPosition = new Vector3(x, obstacleEntry.yOffset, centerZ + zOffset);
+                float zOffset = UnityEngine.Random.Range(-SpawnInterval * 0.3f, SpawnInterval * 0.3f);
+                CollectibleEntry entry = PickWeighted(obstaclePrefabs);
+                GameObject o = Instantiate(entry.prefab, transform);
+                o.transform.localPosition = new Vector3(x, entry.yOffset, centerZ + zOffset);
                 activeObstacles.Add(o);
-                laneHasObstacle[lane] = true;
+                laneBlocked[lane] = true;
+                if (lane + 1 < 5) laneBlocked[lane + 1] = true;
             }
         }
 
-        if (collectiblePrefabs == null || collectiblePrefabs.Length == 0) return;
-
-        for (int lane = 0; lane < 5; lane++)
+        // Coin line
+        if (coinPrefabs != null && coinPrefabs.Length > 0 && UnityEngine.Random.value <= CoinChance)
         {
-            if (laneHasObstacle[lane]) continue;
-            if (UnityEngine.Random.value > collectibleChance) continue;
-
-            float x = (lane - 2) * laneWidth;
-            float zOffset = UnityEngine.Random.Range(-spawnInterval * 0.3f, spawnInterval * 0.3f);
-            CollectibleEntry collectibleEntry = PickWeighted(collectiblePrefabs);
-            GameObject c = Instantiate(collectibleEntry.prefab, transform);
-            c.transform.localPosition = new Vector3(x, collectibleEntry.yOffset, centerZ + zOffset);
-            activeCollectibles.Add(c);
+            int coinLane = PickFreeLane(laneBlocked);
+            if (coinLane >= 0)
+            {
+                laneBlocked[coinLane] = true;
+                int count = UnityEngine.Random.Range(coinLineMin, coinLineMax + 1);
+                float span = SpawnInterval * 0.8f;
+                float startZ = centerZ - span * 0.5f;
+                float step = count > 1 ? span / (count - 1) : 0f;
+                CollectibleEntry coinEntry = PickWeighted(coinPrefabs);
+                float x = (coinLane - 2) * laneWidth;
+                for (int i = 0; i < count; i++)
+                {
+                    GameObject c = Instantiate(coinEntry.prefab, transform);
+                    c.transform.localPosition = new Vector3(x, coinEntry.yOffset, startZ + i * step);
+                    activeCollectibles.Add(c);
+                }
+            }
         }
+
+        // Special collectibles
+        if (specialPrefabs != null && specialPrefabs.Length > 0)
+        {
+            for (int lane = 0; lane < 5; lane++)
+            {
+                if (laneBlocked[lane]) continue;
+                if (UnityEngine.Random.value > SpecialChance) continue;
+
+                float x = (lane - 2) * laneWidth;
+                float zOffset = UnityEngine.Random.Range(-SpawnInterval * 0.3f, SpawnInterval * 0.3f);
+                CollectibleEntry entry = PickWeighted(specialPrefabs);
+                GameObject c = Instantiate(entry.prefab, transform);
+                c.transform.localPosition = new Vector3(x, entry.yOffset, centerZ + zOffset);
+                activeCollectibles.Add(c);
+            }
+        }
+    }
+
+    private int PickFreeLane(bool[] blocked)
+    {
+        int free = 0;
+        for (int i = 0; i < blocked.Length; i++)
+            if (!blocked[i]) free++;
+        if (free == 0) return -1;
+
+        int pick = UnityEngine.Random.Range(0, free);
+        int found = 0;
+        for (int i = 0; i < blocked.Length; i++)
+        {
+            if (!blocked[i])
+            {
+                if (found == pick) return i;
+                found++;
+            }
+        }
+        return -1;
     }
 
     private CollectibleEntry PickWeighted(CollectibleEntry[] entries)
@@ -161,5 +216,64 @@ public class TrackManager : MonoBehaviour
         }
 
         return entries[entries.Length - 1];
+    }
+
+    private void OnDrawGizmos()
+    {
+        float zNear = -despawnDistance;
+        float zFar = lookaheadDistance;
+        float xMin = -2.5f * laneWidth;
+        float xMax =  2.5f * laneWidth;
+
+        // Lane separators
+        Gizmos.color = new Color(1f, 1f, 0f, 0.25f);
+        for (int i = 0; i <= 5; i++)
+        {
+            float x = (i - 2) * laneWidth - laneWidth * 0.5f;
+            Gizmos.DrawLine(transform.TransformPoint(x, 0f, zNear),
+                            transform.TransformPoint(x, 0f, zFar));
+        }
+
+        // Lane centre lines
+        Gizmos.color = new Color(1f, 1f, 0f, 0.6f);
+        for (int lane = 0; lane < 5; lane++)
+        {
+            float x = (lane - 2) * laneWidth;
+            Gizmos.DrawLine(transform.TransformPoint(x, 0f, zNear),
+                            transform.TransformPoint(x, 0f, zFar));
+        }
+
+        // Lookahead boundary
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine(transform.TransformPoint(xMin, 0f, zFar),
+                        transform.TransformPoint(xMax, 0f, zFar));
+
+        // Despawn boundary
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(transform.TransformPoint(xMin, 0f, zNear),
+                        transform.TransformPoint(xMax, 0f, zNear));
+
+        // Strip lines
+        float interval = Application.isPlaying ? SpawnInterval : 8f;
+        if (interval <= 0f) return;
+        Gizmos.color = new Color(0f, 0.8f, 1f, 0.5f);
+        if (Application.isPlaying)
+        {
+            float z = furthestSpawnedZ;
+            while (z > zNear)
+            {
+                Gizmos.DrawLine(transform.TransformPoint(xMin, 0f, z),
+                                transform.TransformPoint(xMax, 0f, z));
+                z -= interval;
+            }
+        }
+        else
+        {
+            for (float z = interval; z < zFar; z += interval)
+            {
+                Gizmos.DrawLine(transform.TransformPoint(xMin, 0f, z),
+                                transform.TransformPoint(xMax, 0f, z));
+            }
+        }
     }
 }

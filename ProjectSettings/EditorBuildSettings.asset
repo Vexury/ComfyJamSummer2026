@@ -6,6 +6,12 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/BootLoader.unity
+    guid: e65bf4e93f7db9243bdd7c734a61db07
+  - enabled: 1
+    path: Assets/Scenes/MainMenu.unity
+    guid: a972464de2d45eb49bb9833ee237c8ff
+  - enabled: 1
     path: Assets/Scenes/ShrimpRoller.unity
     guid: f7f79566c717caa46856be950009fe68
   - enabled: 0
